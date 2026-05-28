@@ -7,17 +7,27 @@ const app = express();
 
 // Support both local development and AWS ElastiCache
 const redisUrl = process.env.REDIS_URL || 'redis://redis:6379';
-const redisClient = redis.createClient({
-  url: redisUrl
-});
+const redisClient = redis.createClient(redisUrl);
 
-// Handle Redis connection errors
+// Handle Redis connection lifecycle
 redisClient.on('error', (err) => {
   console.error('Redis connection error:', err);
 });
 
 redisClient.on('connect', () => {
+  console.log('Redis connecting:', redisUrl);
+});
+
+redisClient.on('ready', () => {
   console.log('Connected to Redis:', redisUrl);
+});
+
+redisClient.on('end', () => {
+  console.warn('Redis connection ended');
+});
+
+redisClient.on('reconnecting', () => {
+  console.warn('Redis reconnecting...');
 });
 
 // ----- 1. PROMETHEUS METRICS SETUP -----
@@ -74,14 +84,34 @@ register.registerMetric(visitCounter);
 
 // Route for the main page
 app.get('/', function(req, res) {
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('Redis GET timeout for /');
+      res.status(504).send('Redis timeout');
+    }
+  }, 5000);
+
   redisClient.get('numVisits', function(err, numVisits) {
-    let numVisitsToDisplay = parseInt(numVisits) + 1;
-    if (isNaN(numVisitsToDisplay)) {
-      numVisitsToDisplay = 1;
+    clearTimeout(timeout);
+
+    if (err) {
+      console.error('Redis GET error:', err);
+      return res.status(500).send('Redis error');
     }
 
-    visitCounter.inc(); 
-    redisClient.set('numVisits', numVisitsToDisplay);
+    let numVisitsToDisplay = parseInt(numVisits, 10);
+    if (isNaN(numVisitsToDisplay)) {
+      numVisitsToDisplay = 0;
+    }
+    numVisitsToDisplay += 1;
+
+    visitCounter.inc();
+
+    redisClient.set('numVisits', numVisitsToDisplay, function(setErr) {
+      if (setErr) {
+        console.error('Redis SET error:', setErr);
+      }
+    });
 
     res.send(`${os.hostname()}: Number of visits is: ${numVisitsToDisplay}`);
   });
