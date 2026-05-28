@@ -26,6 +26,54 @@ spec:
               value: {{ ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled | quote }}
             - name: REDIS_URL
               value: {{ ternary (printf "%s://%s:%v" .Values.redis.external.scheme .Values.redis.external.host .Values.redis.external.port) (printf "%s://%s:%v" .Values.redis.scheme .Values.redis.name .Values.redis.port) .Values.redis.external.enabled | quote }}
+{{- if .Values.db.enabled }}
+            - name: DB_HOST
+{{- if .Values.db.secretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName | quote }}
+                  key: {{ .Values.db.hostKey | quote }}
+{{- else }}
+              value: {{ .Values.db.host | quote }}
+{{- end }}
+            - name: DB_PORT
+{{- if .Values.db.secretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName | quote }}
+                  key: {{ .Values.db.portKey | quote }}
+{{- else }}
+              value: {{ .Values.db.port | quote }}
+{{- end }}
+            - name: DB_NAME
+{{- if .Values.db.secretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName | quote }}
+                  key: {{ .Values.db.nameKey | quote }}
+{{- else }}
+              value: {{ .Values.db.name | quote }}
+{{- end }}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName | quote }}
+                  key: {{ .Values.db.userKey | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName | quote }}
+                  key: {{ .Values.db.passwordKey | quote }}
+            - name: DB_SSL
+{{- if .Values.db.secretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName | quote }}
+                  key: {{ .Values.db.sslKey | quote }}
+{{- else }}
+              value: {{ ternary "true" "false" .Values.db.ssl | quote }}
+{{- end }}
+{{- end }}
           resources:
             {{- toYaml .Values.node.resources | nindent 12 }}
   strategy:

@@ -1,0 +1,33 @@
+name: Terraform Destroy
+
+on:
+  push:
+    branches: [ "main" ]
+permissions:
+  id-token: write   # REQUIRED for OIDC
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::955967371588:role/aws-github-role
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve

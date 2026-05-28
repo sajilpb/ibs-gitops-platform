@@ -36,6 +36,20 @@ redis:
     port: 6379
     scheme: rediss
 
+db:
+  enabled: true
+  host: ""
+  port: 5432
+  name: ""
+  secretName: "nodeapp-db-secret"
+  userKey: username
+  passwordKey: password
+  hostKey: host
+  portKey: port
+  nameKey: name
+  sslKey: ssl
+  ssl: true
+
 nginx:
   name: nginx
   image: nginx:latest

@@ -1,7 +1,8 @@
 const os = require('os');
 const express = require('express');
 const redis = require('redis');
-const client = require('prom-client'); 
+const client = require('prom-client');
+const { Pool } = require('pg');
 
 const app = express();
 
@@ -61,6 +62,35 @@ redisClient.on('end', () => {
 redisClient.on('reconnecting', () => {
   console.warn('Redis reconnecting...');
 });
+
+const isDbConfigured = Boolean(process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME);
+let dbPool;
+if (isDbConfigured) {
+  const pgConfig = {
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 5000,
+  };
+
+  dbPool = new Pool(pgConfig);
+  dbPool.on('error', (err) => {
+    console.error('Postgres pool error:', err);
+  });
+
+  dbPool.connect()
+    .then((client) => {
+      console.log('Connected to Postgres:', pgConfig.host);
+      client.release();
+    })
+    .catch((err) => {
+      console.error('Postgres connection failed:', err);
+    });
+}
+
 
 // ----- 1. PROMETHEUS METRICS SETUP -----
 const register = new client.Registry();
@@ -147,6 +177,21 @@ app.get('/', function(req, res) {
 
     res.send(`${os.hostname()}: Number of visits is: ${numVisitsToDisplay}`);
   });
+});
+
+// DB connectivity endpoint
+app.get('/db', async (req, res) => {
+  if (!isDbConfigured || !dbPool) {
+    return res.status(503).send('Database is not configured');
+  }
+
+  try {
+    const result = await dbPool.query('SELECT NOW() as now');
+    return res.send(`Database connected. Current time: ${result.rows[0].now}`);
+  } catch (err) {
+    console.error('DB query error:', err);
+    return res.status(500).send(`DB error: ${err.message}`);
+  }
 });
 
 // /metrics endpoint

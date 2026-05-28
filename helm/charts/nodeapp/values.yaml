@@ -37,6 +37,20 @@ redis:
     port: 6379
     scheme: redis
 
+db:
+  enabled: false
+  host: ""
+  port: 5432
+  name: ""
+  secretName: ""
+  userKey: username
+  passwordKey: password
+  hostKey: host
+  portKey: port
+  nameKey: name
+  sslKey: ssl
+  ssl: false
+
 nginx:
   name: nginx
   image: nginx:latest

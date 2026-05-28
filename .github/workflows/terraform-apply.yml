@@ -1,0 +1,77 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [ "main" ]
+permissions:
+  id-token: write   # REQUIRED for OIDC
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::955967371588:role/aws-github-role
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Fmt Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-sarif-action@21ded20e8ca120cd9d3d6ab04ef746477542a608
+        with:
+          sarif_file: tfsec.sarif
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: tfsec.sarif
+      
+      - name: Terraform Plan (save)
+        run: |
+          terraform plan -out=tfplan
+          terraform show -json tfplan > plan.json
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve
+
+      - name: Configure kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "${{ env.EKS_CLUSTER_NAME }}"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Install External Secrets Operator via Helm
+        run: |
+          helm repo add external-secrets https://charts.external-secrets.io
+          helm repo update
+          ROLE_ARN=$(cd terraform && terraform output -raw external_secrets_role_arn)
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets \
+            --create-namespace \
+            --set installCRDs=true \
+            --set serviceAccount.create=true \
+            --set serviceAccount.name=external-secrets \
+            --set-string serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ROLE_ARN"

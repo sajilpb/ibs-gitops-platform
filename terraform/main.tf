@@ -65,11 +65,21 @@ module "csiaddon" {
 #########################################
 # Elastic Cache Module
 #########################################
-module "elastic-cache"{
-  source = "./modules/elastic-cache"
-  vpc_id       = module.vpc.vpc_id
-  subnet_ids   = module.vpc.private_subnets
+module "elastic-cache" {
+  source                   = "./modules/elastic-cache"
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnets
   source_security_group_id = module.eks.node_security_group_id
+}
+
+#########################################
+# Redis DB
+#########################################
+module "db" {
+  source                = "./modules/rds"
+  vpc_id                = module.vpc.vpc_id
+  subnet_ids            = module.vpc.private_subnets
+  eks_security_group_id = module.eks.node_security_group_id
 }
 
 #########################################
