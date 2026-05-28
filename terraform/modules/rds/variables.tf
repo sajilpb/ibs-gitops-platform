@@ -37,7 +37,7 @@ variable "db_engine" {
 
 variable "db_engine_version" {
   type    = string
-  default = "15.4"
+  default = "17.7"
 }
 
 variable "db_password_length" {

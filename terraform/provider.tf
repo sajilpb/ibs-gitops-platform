@@ -15,9 +15,14 @@ terraform {
       version = "3.1.0"
     }
 
-  }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
 
-  backend "s3" {
+  }
+  
+   backend "s3" {
     bucket       = "myterraformstatebucketdemo"
     key          = "terraform.tfstate"
     region       = "us-east-1"

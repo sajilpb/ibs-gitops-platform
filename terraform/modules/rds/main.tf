@@ -1,6 +1,6 @@
 resource "random_password" "db_password" {
   length  = var.db_password_length
-  special = true
+  special = false
 }
 
 resource "aws_db_subnet_group" "default" {

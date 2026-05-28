@@ -50,12 +50,6 @@ jobs:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif
           path: terraform
-      
-      - name: Terraform Plan (save)
-        run: |
-          terraform plan -out=tfplan
-          terraform show -json tfplan > plan.json
-        working-directory: terraform
 
       - name: Terraform apply
         run: terraform apply -auto-approve
