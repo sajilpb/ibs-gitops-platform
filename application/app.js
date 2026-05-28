@@ -9,8 +9,8 @@ const app = express();
 const redisHost = process.env.REDIS_HOST || 'redis';
 const redisPort = parseInt(process.env.REDIS_PORT, 10) || 6379;
 const redisUrl = process.env.REDIS_URL || `redis://${redisHost}:${redisPort}`;
-const redisClient = redis.createClient({
-  url: redisUrl,
+const redisUrlObject = new URL(redisUrl);
+const redisConnectionOptions = {
   retry_strategy: (options) => {
     if (options.error) {
       console.error('Redis retry error:', options.error);
@@ -26,7 +26,20 @@ const redisClient = redis.createClient({
   },
   enable_offline_queue: false,
   connect_timeout: 5000,
-});
+};
+
+const needsTls = redisUrlObject.protocol === 'rediss:' || redisUrlObject.hostname.endsWith('.serverless.use1.cache.amazonaws.com');
+if (needsTls) {
+  redisConnectionOptions.tls = {
+    servername: redisUrlObject.hostname,
+  };
+}
+
+const redisClient = redis.createClient(
+  redisUrlObject.port || redisPort,
+  redisUrlObject.hostname || redisHost,
+  redisConnectionOptions
+);
 
 // Handle Redis connection lifecycle
 redisClient.on('error', (err) => {
@@ -34,7 +47,7 @@ redisClient.on('error', (err) => {
 });
 
 redisClient.on('connect', () => {
-  console.log('Redis connected at TCP level:', redisUrl);
+  console.log('Redis TCP connect succeeded:', redisUrl);
 });
 
 redisClient.on('ready', () => {

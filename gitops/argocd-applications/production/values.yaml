@@ -34,7 +34,7 @@ redis:
     enabled: true
     host: "rediscache-nodeapp-prod-j03vpl.serverless.use1.cache.amazonaws.com"
     port: 6379
-    scheme: redis
+    scheme: rediss
 
 nginx:
   name: nginx
