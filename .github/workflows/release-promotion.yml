@@ -1,0 +1,104 @@
+name: Release and Promote to Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version (e.g., v1.1.0)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  tag-and-promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set release version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION=${{ github.event.release.tag_name }}
+          else
+            VERSION=${{ github.event.inputs.release_version }}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag Docker image from main branch
+        run: |
+          MAIN_SHA=$(git rev-parse HEAD~$(git rev-list --count HEAD))
+          RELEASE_TAG=${{ steps.version.outputs.version }}
+          
+          # Pull the latest main image and tag it as release
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main || true
+          if [ -z "$(docker images -q ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main 2>/dev/null)" ]; then
+            echo "Using latest SHA-tagged image from main"
+            LATEST_SHA=$(git log --oneline -1 -- application/ | awk '{print $1}')
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${LATEST_SHA:0:7}
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${LATEST_SHA:0:7} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG
+          else
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG
+          fi
+          
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG
+          echo "✅ Pushed image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG"
+
+      - name: Update Helm values for production
+        run: |
+          RELEASE_TAG=${{ steps.version.outputs.version }}
+          HELM_VALUES_FILE="gitops/argocd-applications/production/values.yaml"
+          
+          # Update the image tag in production values
+          sed -i "s|image: ghcr.io/sajilpb/ibs-gitops-platform:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG|g" "$HELM_VALUES_FILE"
+          
+          echo "Updated $HELM_VALUES_FILE with image tag: $RELEASE_TAG"
+          cat "$HELM_VALUES_FILE" | grep -A 2 "node:" | head -5
+
+      - name: Commit and push Helm values update
+        run: |
+          RELEASE_TAG=${{ steps.version.outputs.version }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          
+          git add gitops/argocd-applications/production/values.yaml
+          
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: promote image to production - $RELEASE_TAG"
+            git push origin ${{ github.ref }}
+            echo "✅ Pushed Helm values update for $RELEASE_TAG"
+          fi
+
+      - name: Create release summary
+        run: |
+          cat > /tmp/release-summary.txt <<EOF
+          🚀 Release Promotion Complete
+          
+          Release Version: ${{ steps.version.outputs.version }}
+          Docker Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          Production Helm Values: Updated
+          Status: ✅ Ready for deployment via ArgoCD
+          EOF
+          cat /tmp/release-summary.txt
