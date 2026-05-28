@@ -1,6 +1,12 @@
 name: Terraform Apply
 
 on:
+  push:
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform-apply.yml'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -28,18 +34,15 @@ jobs:
 
       - name: Terraform Fmt Check
         run: terraform fmt -check -recursive
-        with:
-          path: terraform
+        working-directory: terraform
 
       - name: Terraform Init
         run: terraform init
-        with:
-          path: terraform
+        working-directory: terraform
 
       - name: Terraform Validate
         run: terraform validate
-        with:
-          path: terraform
+        working-directory: terraform
 
       - name: Run tfsec
         uses: aquasecurity/tfsec-sarif-action@21ded20e8ca120cd9d3d6ab04ef746477542a608
@@ -58,13 +61,11 @@ jobs:
         run: |
           terraform plan -out=tfplan
           terraform show -json tfplan > plan.json
-        with:
-          path: terraform
+        working-directory: terraform
 
       - name: Terraform apply
         run: terraform apply -auto-approve
-        with:
-          path: terraform
+        working-directory: terraform
 
       - name: Configure kubeconfig for EKS
         run: |

@@ -2,7 +2,11 @@ name: Terraform Destroy
 
 on:
   push:
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform-destroy.yml'
     branches: [ "main" ]
+  workflow_dispatch:
 permissions:
   id-token: write   # REQUIRED for OIDC
   contents: read
@@ -28,10 +32,8 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        with:
-          path: terraform
+        working-directory: terraform
 
       - name: Terraform Destroy
         run: terraform destroy -auto-approve
-        with:
-          path: terraform
+        working-directory: terraform
