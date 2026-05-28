@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ .Values.node.name }}-canary-analysis
+  labels:
+    app: {{ .Values.node.name }}
+spec:
+  args:
+    - name: app
+      value: {{ .Values.node.name | quote }}
+  metrics:
+    - name: error-rate
+      interval: 30s
+      count: 3
+      successCondition: result <= 0.01
+      failureCondition: result > 0.05
+      provider:
+        prometheus:
+          # Query computes ratio of 5xx requests to total requests over 2m
+          query: |
+            sum(rate(http_requests_total{app="{{`{{args.app}}`}}",status=~"5.."}[2m]))
+            /
+            sum(rate(http_requests_total{app="{{`{{args.app}}`}}"}[2m]))
+
+    - name: p95-latency
+      interval: 30s
+      count: 3
+      successCondition: result < 0.3
+      failureCondition: result > 0.5
+      provider:
+        prometheus:
+          # P95 histogram query; adjust metric name if different in your app
+          query: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app="{{`{{args.app}}`}}"}[2m])) by (le))

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  labels:
+    {{- include "nodeapp.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.nginx.type }}
+  ports:
+    - port: {{ .Values.nginx.port }}
+      targetPort: {{ .Values.nginx.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app: nginx

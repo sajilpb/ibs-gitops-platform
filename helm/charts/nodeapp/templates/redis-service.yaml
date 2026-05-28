@@ -1,0 +1,24 @@
+{{- if or .Values.redis.enabled .Values.redis.external.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.redis.name }}
+  labels:
+    {{- include "nodeapp.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.redis.external.enabled }}
+  type: ExternalName
+  externalName: {{ required "redis.external.host is required when redis.external.enabled=true" .Values.redis.external.host | quote }}
+  {{- else }}
+  type: {{ .Values.redis.type }}
+  {{- end }}
+  ports:
+    - port: {{ ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled }}
+      targetPort: {{ ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled }}
+      protocol: TCP
+      name: redis
+  {{- if not .Values.redis.external.enabled }}
+  selector:
+    app: redis
+  {{- end }}
+{{- end }}

@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Helm
+**/charts/
+!helm/charts/
+!helm/charts/**
+*.tgz
+Chart.lock
+
+# Keep generated macOS files ignored even in re-included chart source paths
+**/.DS_Store

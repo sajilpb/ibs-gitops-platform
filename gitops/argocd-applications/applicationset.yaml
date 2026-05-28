@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nodeapp
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: development
+            namespace: nodeapp-development
+            cluster: https://kubernetes.default.svc
+          - env: production
+            namespace: nodeapp-production
+            cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: nodeapp-{{env}}
+      labels:
+        app.kubernetes.io/name: nodeapp
+        app.kubernetes.io/part-of: nodeapp
+        environment: "{{env}}"
+    spec:
+      project: default
+      sources:
+        - repoURL: https://github.com/sajilpb/Helm.git
+          targetRevision: main
+          path: charts/nodeapp
+          helm:
+            releaseName: nodeapp
+            valueFiles:
+              - $values/{{env}}/values.yaml
+        - repoURL: https://github.com/sajilpb/gitops-config-repo.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: "{{cluster}}"
+        namespace: "{{namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

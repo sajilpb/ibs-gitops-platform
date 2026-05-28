@@ -1,0 +1,68 @@
+namespaceOverride: nodeapp-development
+
+node:
+  name: node
+  image: ghcr.io/sajilpb/docker:main
+  port: 5000
+  targetPort: 5000
+  replicaCount: 1
+  type: ClusterIP
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+redis:
+  name: redis
+  image: redis:latest
+  port: 6379
+  replicaCount: 1
+  type: ClusterIP
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+nginx:
+  name: nginx
+  image: nginx:latest
+  port: 80
+  servicePort: 80
+  targetPort: 80
+  replicaCount: 1
+  type: ClusterIP
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: shared-alb
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/group.order: "10"
+    external-dns.alpha.kubernetes.io/hostname: dev.sajil.click
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:955967371588:certificate/58f46507-48af-4497-a836-43fb56b6b351
+  hosts:
+    - host: dev.sajil.click
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+argocd:
+  enabled: false

@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Values.node.name }}
+  labels:
+    app: node
+spec:
+  replicas: {{ .Values.node.replicaCount }}
+  selector:
+    matchLabels:
+      app: node
+  template:
+    metadata:
+      labels:
+        app: node
+    spec:
+      containers:
+        - name: node
+          image: {{ .Values.node.image }}
+          ports:
+            - containerPort: {{ .Values.node.port }}
+          env:
+            - name: REDIS_HOST
+              value: {{ .Values.redis.name | quote }}
+            - name: REDIS_PORT
+              value: {{ ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled | quote }}
+            - name: REDIS_URL
+              value: {{ printf "%s://%s:%v" .Values.redis.external.scheme .Values.redis.name (ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled) | quote }}
+          resources:
+            {{- toYaml .Values.node.resources | nindent 12 }}
+  strategy:
+    canary:
+      steps:
+        - setWeight: 20
+        - analysis:
+            templates:
+              - templateName: {{ .Values.node.name }}-canary-analysis
+            args:
+              - name: app
+                value: {{ .Values.node.name | quote }}
+        - pause: { duration: 30s }
+        - setWeight: 50
+        - analysis:
+            templates:
+              - templateName: {{ .Values.node.name }}-canary-analysis
+            args:
+              - name: app
+                value: {{ .Values.node.name | quote }}
+        - pause: { duration: 30s }
+        - setWeight: 100

@@ -1,0 +1,12 @@
+# values-argocd.yaml
+global:
+  image:
+    imagePullPolicy: IfNotPresent
+
+server:
+  extraArgs:
+    - --insecure         # ALB will terminate TLS, so disable ArgoCD TLS:contentReference[oaicite:1]{index=1}
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
