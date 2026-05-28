@@ -6,8 +6,27 @@ const client = require('prom-client');
 const app = express();
 
 // Support both local development and AWS ElastiCache
-const redisUrl = process.env.REDIS_URL || 'redis://redis:6379';
-const redisClient = redis.createClient(redisUrl);
+const redisHost = process.env.REDIS_HOST || 'redis';
+const redisPort = parseInt(process.env.REDIS_PORT, 10) || 6379;
+const redisUrl = process.env.REDIS_URL || `redis://${redisHost}:${redisPort}`;
+const redisClient = redis.createClient({
+  url: redisUrl,
+  retry_strategy: (options) => {
+    if (options.error) {
+      console.error('Redis retry error:', options.error);
+    }
+
+    if (options.total_retry_time > 10000) {
+      return new Error('Redis retry time exhausted');
+    }
+    if (options.attempt > 3) {
+      return undefined;
+    }
+    return Math.min(options.attempt * 100, 3000);
+  },
+  enable_offline_queue: false,
+  connect_timeout: 5000,
+});
 
 // Handle Redis connection lifecycle
 redisClient.on('error', (err) => {
@@ -15,11 +34,11 @@ redisClient.on('error', (err) => {
 });
 
 redisClient.on('connect', () => {
-  console.log('Redis connecting:', redisUrl);
+  console.log('Redis connected at TCP level:', redisUrl);
 });
 
 redisClient.on('ready', () => {
-  console.log('Connected to Redis:', redisUrl);
+  console.log('Redis ready:', redisUrl);
 });
 
 redisClient.on('end', () => {
