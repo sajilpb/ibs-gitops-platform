@@ -3,7 +3,9 @@ name: Deploy Helm chart
 on:
   push:
     paths:
+      - '.github/workflows/Helmchart.yml'
       - 'helm/charts/**'
+      - 'helm/docs/index.yaml'
     branches:
       - main
   workflow_dispatch:
@@ -33,28 +35,22 @@ jobs:
           version: v3.14.0
 
       - name: Prepare
-        run: mkdir -p docs
-
-      - name: Download existing index.yaml (if present)
-        run: |
-          git fetch origin main || true
-          git checkout origin/main -- helm/docs/index.yaml || echo "No existing index.yaml"
+        run: mkdir -p helm/docs
 
       - name: Package
         run: |
           helm package helm/charts/* --destination helm/docs
 
-      - name: Merge and update index.yaml
+      - name: Generate index.yaml
         run: |
-          helm repo index docs \
-            --url https://sajilpb.github.io/ibs-gitops-platform/ \
-            --merge helm/docs/index.yaml || helm repo index helm/docs --url https://sajil1pb.github.io/Helm/
+          helm repo index helm/docs \
+            --url https://sajilpb.github.io/ibs-gitops-platform
 
       # Upload generated Helm repo as Pages artifact
       - name: Uploadartifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: helm/docs
 
       # Deploy to GitHub Pages
       - name: DeploytoGitHub Pages
