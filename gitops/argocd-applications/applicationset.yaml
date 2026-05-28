@@ -23,14 +23,14 @@ spec:
     spec:
       project: default
       sources:
-        - repoURL: https://github.com/sajilpb/Helm.git
+        - repoURL: https://github.com/sajilpb/ibs-gitops-platform.git
           targetRevision: main
-          path: charts/nodeapp
+          path: helm/charts/nodeapp
           helm:
             releaseName: nodeapp
             valueFiles:
-              - $values/{{env}}/values.yaml
-        - repoURL: https://github.com/sajilpb/gitops-config-repo.git
+              - $values/gitops/argocd-applications/{{env}}/values.yaml
+        - repoURL: https://github.com/sajilpb/ibs-gitops-platform.git
           targetRevision: main
           ref: values
       destination:

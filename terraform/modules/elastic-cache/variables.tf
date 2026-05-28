@@ -1,23 +1,8 @@
 # variables from other modules
-variable "vpc_id" {
-  type = string
+variable "Vpc_id" {
+  type = list(any)
 }
 
 variable "subnet_ids" {
-  type = list(string)
-}
-
-variable "source_security_group_id" {
-  type = string
-}
-
-variable "redis_environments" {
-  type = map(object({
-    name = string
-  }))
-
-  default = {
-    dev  = { name = "rediscache-nodeapp-dev" }
-    prod = { name = "rediscache-nodeapp-prod" }
-  }
+  type = list(any)
 }

@@ -1,6 +1,7 @@
 namespaceOverride: nodeapp-production
 
 node:
+  enabled: true
   name: node
   image: ghcr.io/sajilpb/docker:main
   port: 5000
@@ -16,6 +17,7 @@ node:
       memory: 512Mi
 
 redis:
+  enabled: false
   name: redis
   image: redis:latest
   port: 6379
@@ -28,6 +30,11 @@ redis:
     requests:
       cpu: 200m
       memory: 256Mi
+  external:
+    enabled: true
+    host: "rediscache-nodeapp-prod-j03vpl.serverless.use1.cache.amazonaws.com"
+    port: 6379
+    scheme: redis
 
 nginx:
   name: nginx
