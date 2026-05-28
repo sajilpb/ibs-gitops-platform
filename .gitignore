@@ -24,3 +24,39 @@ Chart.lock
 
 # Keep generated macOS files ignored even in re-included chart source paths
 **/.DS_Store
+
+# Dependencies
+node_modules/
+npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build and runtime
+dist/
+build/
+coverage/
+
+# Logs
+logs/
+*.log
+
+# Misc
+.cache/
+.next/
+out/
