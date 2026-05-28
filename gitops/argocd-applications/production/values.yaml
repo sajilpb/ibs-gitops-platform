@@ -3,7 +3,7 @@ namespaceOverride: nodeapp-production
 node:
   enabled: true
   name: node
-  image: ghcr.io/sajilpb/docker:main
+  image: ghcr.io/sajilpb/ibs-gitops-platform:main
   port: 5000
   targetPort: 5000
   replicaCount: 2
