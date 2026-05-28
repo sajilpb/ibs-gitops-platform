@@ -3,7 +3,7 @@ namespaceOverride: nodeapp-production
 node:
   enabled: true
   name: node
-  image: ghcr.io/sajilpb/ibs-gitops-platform:39a4d8acf45924cd911c6e91a787461269555a59
+  image: ghcr.io/sajilpb/ibs-gitops-platform:0fd494aed4eb9bd3699b1f2d702b0808612c9544
   port: 5000
   targetPort: 5000
   replicaCount: 2
