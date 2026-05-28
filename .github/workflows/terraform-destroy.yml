@@ -1,12 +1,8 @@
 name: Terraform Destroy
 
 on:
-  push:
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform-destroy.yml'
-    branches: [ "main" ]
   workflow_dispatch:
+  
 permissions:
   id-token: write   # REQUIRED for OIDC
   contents: read
