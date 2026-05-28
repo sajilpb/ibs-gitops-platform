@@ -21,11 +21,11 @@ spec:
             - containerPort: {{ .Values.node.port }}
           env:
             - name: REDIS_HOST
-              value: {{ .Values.redis.name | quote }}
+              value: {{ ternary .Values.redis.external.host .Values.redis.name .Values.redis.external.enabled | quote }}
             - name: REDIS_PORT
               value: {{ ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled | quote }}
             - name: REDIS_URL
-              value: {{ printf "%s://%s:%v" .Values.redis.external.scheme .Values.redis.name (ternary .Values.redis.external.port .Values.redis.port .Values.redis.external.enabled) | quote }}
+              value: {{ ternary (printf "%s://%s:%v" .Values.redis.external.scheme .Values.redis.external.host .Values.redis.external.port) (printf "%s://%s:%v" .Values.redis.scheme .Values.redis.name .Values.redis.port) .Values.redis.external.enabled | quote }}
           resources:
             {{- toYaml .Values.node.resources | nindent 12 }}
   strategy:

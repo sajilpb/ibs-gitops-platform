@@ -7,9 +7,9 @@ spec:
   generators:
     - list:
         elements:
-          - env: development
-            namespace: nodeapp-development
-            cluster: https://kubernetes.default.svc
+          # - env: development
+          #   namespace: nodeapp-development
+          #   cluster: https://kubernetes.default.svc
           - env: production
             namespace: nodeapp-production
             cluster: https://kubernetes.default.svc
