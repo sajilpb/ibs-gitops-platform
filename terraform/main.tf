@@ -45,11 +45,13 @@ module "route53" {
 # Argo Module
 ################################################################
 module "argocd" {
-  source       = "./modules/argocd"
-  cluster_name = var.cluster_name
-  main-region  = var.main-region
-  vpc_id       = module.vpc.vpc_id
-  depends_on   = [module.eks, module.route53]
+  source            = "./modules/argocd"
+  cluster_name      = var.cluster_name
+  main-region       = var.main-region
+  vpc_id            = module.vpc.vpc_id
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.cluster_oidc_issuer_url
+  depends_on        = [module.eks, module.route53]
 }
 
 #########################################
@@ -83,3 +85,13 @@ module "db" {
   oidc_provider_arn     = module.eks.oidc_provider_arn
   oidc_provider_url     = module.eks.cluster_oidc_issuer_url
 }
+
+#########################################
+# CloudWatch Monitoring
+#########################################
+module "cloudwatch" {
+  source      = "./modules/cloudwatch"
+  env_name    = var.env_name
+  prod_domain = var.prod_domain
+}
+

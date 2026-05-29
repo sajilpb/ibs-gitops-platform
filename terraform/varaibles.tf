@@ -76,3 +76,14 @@ variable "domain_name" {
   type    = string
   default = "sajil.click"
 }
+
+################################################################################
+# CloudWatch Monitoring Variables
+################################################################################
+
+variable "prod_domain" {
+  description = "Production application domain for Route53 health check monitoring"
+  type        = string
+  default     = "prod.sajil.click"
+}
+

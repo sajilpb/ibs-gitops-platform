@@ -1,3 +1,4 @@
+{{- if .Values.canary.cloudwatch.albArnSuffix }}
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -7,28 +8,61 @@ metadata:
 spec:
   args:
     - name: app
-      value: {{ .Values.node.name | quote }}
+    - name: alb-arn-suffix
   metrics:
     - name: error-rate
-      interval: 30s
+      interval: 1m
       count: 3
-      successCondition: result <= 0.01
-      failureCondition: result > 0.05
+      successCondition: result[0] <= 1
+      failureCondition: result[0] > 5
       provider:
-        prometheus:
-          # Query computes ratio of 5xx requests to total requests over 2m
-          query: |
-            sum(rate(http_requests_total{app="{{`{{args.app}}`}}",status=~"5.."}[2m]))
-            /
-            sum(rate(http_requests_total{app="{{`{{args.app}}`}}"}[2m]))
+        cloudWatch:
+          interval: 1m
+          metricDataQueries:
+            - id: errors
+              metricStat:
+                metric:
+                  namespace: AWS/ApplicationELB
+                  metricName: HTTPCode_Target_5XX_Count
+                  dimensions:
+                    - name: LoadBalancer
+                      value: "{{`{{ args.alb-arn-suffix }}`}}"
+                period: 60
+                stat: Sum
+                unit: Count
+            - id: requests
+              metricStat:
+                metric:
+                  namespace: AWS/ApplicationELB
+                  metricName: RequestCount
+                  dimensions:
+                    - name: LoadBalancer
+                      value: "{{`{{ args.alb-arn-suffix }}`}}"
+                period: 60
+                stat: Sum
+                unit: Count
+            - id: error_rate
+              expression: "IF(requests > 0, errors / requests * 100, 0)"
+              returnData: true
 
     - name: p95-latency
-      interval: 30s
+      interval: 1m
       count: 3
-      successCondition: result < 0.3
-      failureCondition: result > 0.5
+      successCondition: result[0] < 0.3
+      failureCondition: result[0] > 0.5
       provider:
-        prometheus:
-          # P95 histogram query; adjust metric name if different in your app
-          query: |
-            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app="{{`{{args.app}}`}}"}[2m])) by (le))
+        cloudWatch:
+          interval: 1m
+          metricDataQueries:
+            - id: p95_latency
+              metricStat:
+                metric:
+                  namespace: AWS/ApplicationELB
+                  metricName: TargetResponseTime
+                  dimensions:
+                    - name: LoadBalancer
+                      value: "{{`{{ args.alb-arn-suffix }}`}}"
+                period: 60
+                stat: p95
+              returnData: true
+{{- end }}

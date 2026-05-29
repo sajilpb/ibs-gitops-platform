@@ -86,6 +86,13 @@ argocd:
     hosts: []
     tls: []
 
+canary:
+  cloudwatch:
+    # ALB ARN suffix in CloudWatch dimension format: app/<alb-name>/<id>
+    # Get it with: aws elbv2 describe-load-balancers --query "LoadBalancers[?contains(LoadBalancerName,'sharedal')].LoadBalancerArn" --output text | sed 's|.*loadbalancer/||'
+    # When empty, canary analysis steps are skipped (rollout still proceeds via pause steps)
+    albArnSuffix: ""
+
 externalSecrets:
   enabled: false
   awsSecretName: ""
