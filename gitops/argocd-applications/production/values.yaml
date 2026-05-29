@@ -52,7 +52,7 @@ db:
 
 externalSecrets:
   enabled: true
-  awsSecretName: "nodeapp-db-credentials-v3"
+  awsSecretName: "nodeapp-db-credentials-v4"
   refreshInterval: 1h
   clusterSecretStore:
     create: true
