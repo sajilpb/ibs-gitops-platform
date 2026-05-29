@@ -7,8 +7,10 @@ A production-grade GitOps platform running a Node.js application on AWS EKS, usi
 ## Table of Contents
 
 - [Repository Architecture](#repository-architecture)
+- [AWS Infrastructure](#aws-infrastructure)
 - [Project Overview & Data Flow](#project-overview--data-flow)
 - [GitHub Workflows](#github-workflows)
+- [Environment URLs](#environment-urls)
 
 ---
 
@@ -17,31 +19,34 @@ A production-grade GitOps platform running a Node.js application on AWS EKS, usi
 ```
 ibs-gitops-platform/
 ├── application/                    # Node.js application source
-│   ├── app.js                      # Express app (visit counter, DB health, Prometheus metrics)
+│   ├── app.js                      # Express app (visit counter, DB health check)
 │   └── Dockerfile
 │
 ├── helm/
-│   └── charts/nodeapp/             # Helm chart for the application
+│   └── charts/nodeapp/             # Helm chart — owns all application resources
 │       ├── Chart.yaml
-│       ├── values.yaml             # Default values
+│       ├── values.yaml             # Default values (all features disabled)
 │       └── templates/
-│           ├── node-deployment.yaml      # Argo Rollout (canary strategy)
-│           ├── nginx-deployment.yaml     # Nginx reverse proxy
-│           ├── ingress.yaml              # AWS ALB ingress
-│           ├── hpa.yaml                  # Horizontal Pod Autoscaler
-│           └── analysis-template.yaml   # Canary analysis template
+│           ├── node-deployment.yaml        # Argo Rollout (canary strategy)
+│           ├── nginx-deployment.yaml       # Nginx reverse proxy
+│           ├── ingress.yaml                # App ALB ingress (prod.sajil.click)
+│           ├── argocd-ingress.yaml         # ArgoCD UI ALB ingress (argocd.sajil.click)
+│           ├── cluster-secret-store.yaml   # ESO ClusterSecretStore → AWS Secrets Manager
+│           ├── external-secret.yaml        # ESO ExternalSecret → nodeapp-db-secret
+│           ├── analysis-template.yaml      # Canary analysis (CloudWatch ALB metrics)
+│           ├── hpa.yaml                    # Horizontal Pod Autoscaler
+│           ├── nginx-configmap.yaml
+│           ├── nginx-service.yaml
+│           ├── node-service.yaml
+│           └── redis-deployment.yaml
 │
 ├── gitops/
 │   └── argocd-applications/
 │       ├── applicationset.yaml           # ArgoCD ApplicationSet (multi-env generator)
-│       ├── argocd-ingress.yml            # ArgoCD UI ingress (ALB)
 │       ├── production/
-│       │   └── values.yaml              # Production overrides (image tag, RDS secret, Redis)
-│       ├── development/
-│       │   └── values.yaml              # Development overrides
-│       └── external-secrets/
-│           ├── cluster-secret-store.yaml                # ClusterSecretStore → AWS Secrets Manager
-│           └── nodeapp-production-external-secret.yaml  # ExternalSecret → nodeapp-db-secret
+│       │   └── values.yaml              # Production overrides (image, secrets, ingress)
+│       └── development/
+│           └── values.yaml              # Development overrides
 │
 ├── terraform/
 │   ├── main.tf                     # Root module wiring all submodules
@@ -52,31 +57,38 @@ ibs-gitops-platform/
 │       ├── eks/                    # EKS cluster, managed node group, OIDC provider
 │       ├── eks-addons/             # EBS CSI driver (IRSA + addon)
 │       ├── rds/                    # RDS PostgreSQL, Secrets Manager secret, ESO IRSA role
-│       ├── elastic-cache/          # ElastiCache Serverless (Redis) for dev and prod
+│       ├── elastic-cache/          # ElastiCache Serverless (Redis)
 │       ├── alb/                    # AWS Load Balancer Controller (IRSA + Helm)
-│       ├── route53/                # ExternalDNS (IRSA + Helm), hosted zone
-│       └── argocd/                 # ArgoCD + Argo Rollouts (Helm)
+│       ├── route53/                # ExternalDNS (IRSA + Helm)
+│       ├── argocd/                 # ArgoCD + Argo Rollouts (Helm + IRSA for CloudWatch)
+│       └── cloudwatch/             # Route53 health checks + CloudWatch alarms
 │
 └── .github/workflows/
     ├── dockerbuild.yml                  # Build & push Docker image to GHCR
-    ├── helmchart.yml                    # Package Helm chart → GitHub Pages (Helm repo)
+    ├── helmchart.yml                    # Package Helm chart → GitHub Pages
     ├── release-promotion.yml            # Tag release image, update production values
-    ├── deploy-argocd-application.yml    # Apply ArgoCD resources + ESO manifests
+    ├── deploy-argocd-application.yml    # Install ESO + apply ArgoCD ApplicationSet
     ├── terraform-apply.yml              # Provision / update infrastructure
     └── terraform-destroy.yml           # Tear down infrastructure
 ```
 
-### AWS Infrastructure
+---
+
+## AWS Infrastructure
 
 | Component | Service | Purpose |
 |---|---|---|
 | Compute | EKS (managed node group) | Runs all workloads |
-| Ingress | AWS ALB (Load Balancer Controller) | Exposes services via ALB |
-| DNS | Route53 + ExternalDNS | Auto-creates DNS records (`prod.sajil.click`) |
+| Ingress | AWS ALB (shared, group: `shared-alb`) | Single ALB routes both app and ArgoCD UI traffic |
+| DNS | Route53 + ExternalDNS | Auto-creates DNS records for `*.sajil.click` |
 | Cache | ElastiCache Serverless (Redis) | Visit counter storage |
 | Database | RDS PostgreSQL | Connectivity health check (`/db` endpoint) |
-| Secrets | AWS Secrets Manager | Stores RDS credentials |
-| Secret sync | External Secrets Operator | Syncs Secrets Manager → Kubernetes secret |
+| Secrets | AWS Secrets Manager (`nodeapp-db-credentials-v4`) | Stores RDS credentials |
+| Secret sync | External Secrets Operator (IRSA: `EKS-ESO-IRSA`) | Syncs Secrets Manager → `nodeapp-db-secret` |
+| Canary analysis | CloudWatch (`AWS/ApplicationELB`) | Gates canary promotion on error rate and P95 latency |
+| Endpoint monitoring | CloudWatch + Route53 health checks | Alarms on `prod.sajil.click` availability |
+| CD | ArgoCD | GitOps sync of Helm chart from this repo |
+| Canary delivery | Argo Rollouts (IRSA: `EKS-ArgoRollouts-IRSA`) | Progressive traffic shifting with CloudWatch analysis |
 | Registry | GitHub Container Registry (GHCR) | Stores Docker images |
 | Helm repo | GitHub Pages | Hosts packaged Helm charts |
 
@@ -86,13 +98,12 @@ ibs-gitops-platform/
 
 ### Application
 
-The Node.js app (`application/app.js`) exposes three endpoints:
+The Node.js app (`application/app.js`) exposes two endpoints:
 
 | Endpoint | What it does |
 |---|---|
 | `GET /` | Reads and increments `numVisits` in Redis; returns hostname + visit count |
 | `GET /db` | Runs `SELECT NOW()` against PostgreSQL; confirms DB connectivity |
-| `GET /metrics` | Exposes Prometheus metrics (HTTP counters, memory gauge, visit counter) |
 
 ### Request Data Flow
 
@@ -100,64 +111,80 @@ The Node.js app (`application/app.js`) exposes three endpoints:
 Internet
    │
    ▼
-AWS ALB  (shared ALB, group: shared-alb)
-   │
-   ▼
-Nginx pod  (reverse proxy, namespace: nodeapp-production)
-   │
-   ▼
-Node.js pod  ──────► ElastiCache Redis  (visit counter: numVisits)
-   │
-   └──────────────► RDS PostgreSQL  (health check only — SELECT NOW())
+AWS ALB  (shared ALB — group: shared-alb)
+   ├──► argocd.sajil.click  → ArgoCD server (namespace: argocd)
+   └──► prod.sajil.click    → Nginx pod     (namespace: nodeapp-production)
+                                  │
+                                  ▼
+                            Node.js pod ──────► ElastiCache Redis  (visit counter)
+                                  │
+                                  └──────────► RDS PostgreSQL      (health check)
 ```
 
 ### Secret Provisioning Flow
 
 ```
-Terraform apply
+terraform-apply.yml
    │
    ├─► Creates RDS instance
-   ├─► Stores credentials in AWS Secrets Manager  (nodeapp-db-credentials-v3)
-   └─► Creates IAM Role EKS-ESO-IRSA  (trust: ESO service account via OIDC/IRSA)
+   ├─► Stores credentials in Secrets Manager  (nodeapp-db-credentials-v4)
+   └─► Creates IAM Role EKS-ESO-IRSA  (OIDC trust: external-secrets/external-secrets SA)
 
-External Secrets Operator  (namespace: external-secrets)
-   │  authenticates to AWS using IRSA
-   ▼
-ClusterSecretStore (aws-secrets-manager)
-   │  reads from Secrets Manager
-   ▼
-ExternalSecret (nodeapp-db-secret in nodeapp-production)
-   │  refreshes every 1 hour
-   ▼
-Kubernetes Secret: nodeapp-db-secret
-   │  injected as env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSL
-   ▼
-Node.js pod
+deploy-argocd-application.yml
+   │
+   └─► Installs External Secrets Operator via Helm
+          │  annotates SA with EKS-ESO-IRSA role ARN
+          ▼
+       ArgoCD syncs Helm chart
+          │
+          ├─► ClusterSecretStore (aws-secrets-manager)  ← authenticates via IRSA
+          └─► ExternalSecret (nodeapp-db-secret)        ← reads from Secrets Manager
+                 │  refreshes every 1 hour
+                 ▼
+             Kubernetes Secret: nodeapp-db-secret
+                 │  keys: host, port, name, username, password, ssl
+                 ▼
+             Node.js pod env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSL
 ```
 
-### Deployment Flow (GitOps)
+### Deployment & Canary Flow
 
 ```
 Code push to main (application/**)
    │
    ▼
-dockerbuild.yml  ──► builds image ──► pushes ghcr.io/sajilpb/ibs-gitops-platform:<sha>
+dockerbuild.yml
+   └─► builds image → ghcr.io/sajilpb/ibs-gitops-platform:<sha>
 
-   │  (on GitHub Release published)
+GitHub Release published (or workflow_dispatch)
+   │
    ▼
 release-promotion.yml
-   ├─► re-tags image as <release-version> and pushes to GHCR
-   └─► updates gitops/argocd-applications/production/values.yaml
+   ├─► re-tags image as <release-version> → GHCR
+   └─► updates gitops/argocd-applications/production/values.yaml (image tag)
           │
-          ▼  (git push triggers ArgoCD sync)
-       ArgoCD ApplicationSet
-          │  detects values.yaml diff
-          ▼
+          ▼  (git push → ArgoCD detects diff → automated sync)
        Argo Rollout  (canary strategy)
-          │  20% → analysis → 30s pause → 50% → analysis → 30s pause → 100%
-          ▼
-       New version running in nodeapp-production
+          │
+          ├─► 20% canary traffic
+          │     └─► CloudWatch analysis (3 min)
+          │           ├─► HTTPCode_Target_5XX_Count / RequestCount  ≤ 1% → pass
+          │           └─► TargetResponseTime p95                    < 300ms → pass
+          ├─► pause 30s
+          ├─► 50% canary traffic
+          │     └─► CloudWatch analysis (3 min)
+          ├─► pause 30s
+          └─► 100%  (promotion complete)
+              ✗ if analysis fails → automatic rollback to stable
 ```
+
+> **Note:** CloudWatch canary analysis requires `canary.cloudwatch.albArnSuffix` to be set in `gitops/argocd-applications/production/values.yaml`. Get the value with:
+> ```bash
+> aws elbv2 describe-load-balancers \
+>   --query "LoadBalancers[?contains(LoadBalancerName,'sharedal')].LoadBalancerArn" \
+>   --output text | sed 's|.*loadbalancer/||'
+> ```
+> When empty, the rollout proceeds through pause steps only (no automatic rollback on errors).
 
 ---
 
@@ -167,9 +194,9 @@ release-promotion.yml
 
 **Trigger:** Push to `main` touching `application/**`, or manual dispatch.
 
-Builds the Docker image from `application/Dockerfile` and pushes two tags to GHCR:
+Builds the Docker image from `application/Dockerfile` and pushes to GHCR:
 - `ghcr.io/sajilpb/ibs-gitops-platform:<full-sha>` — pinned tag used by ArgoCD
-- Metadata tags (branch, PR number, etc.) via `docker/metadata-action`
+- Metadata tags via `docker/metadata-action`
 
 Also generates a provenance attestation for supply-chain security.
 
@@ -179,11 +206,10 @@ Also generates a provenance attestation for supply-chain security.
 
 **Trigger:** Push to `main` touching `helm/charts/**` or `helm/docs/index.yaml`, or manual dispatch.
 
-Packages the `nodeapp` Helm chart, regenerates `helm/docs/index.yaml`, and deploys it to GitHub Pages at:
+Packages the `nodeapp` Helm chart, regenerates `helm/docs/index.yaml`, and deploys it to GitHub Pages:
 ```
 https://sajilpb.github.io/ibs-gitops-platform
 ```
-This makes the chart installable via:
 ```bash
 helm repo add nodeapp https://sajilpb.github.io/ibs-gitops-platform
 helm install nodeapp nodeapp/nodeapp
@@ -195,7 +221,7 @@ helm install nodeapp nodeapp/nodeapp
 
 **Trigger:** GitHub Release published, or manual dispatch with a version string (e.g. `v1.1.0`).
 
-1. Pulls the latest image from GHCR (built from `main`)
+1. Pulls the latest `main` image from GHCR
 2. Re-tags it with the release version and pushes to GHCR
 3. Updates `gitops/argocd-applications/production/values.yaml` with the new image tag
 4. Commits and pushes — ArgoCD detects the diff and triggers a canary rollout automatically
@@ -206,10 +232,14 @@ helm install nodeapp nodeapp/nodeapp
 
 **Trigger:** Push touching `gitops/argocd-applications/**`, or manual dispatch.
 
-Connects to EKS via OIDC (role: `aws-github-role`) and applies:
-1. **ArgoCD ingress** — exposes the ArgoCD UI via ALB
-2. **External Secrets resources** — `ClusterSecretStore` and `ExternalSecret` to sync DB credentials into `nodeapp-production`
-3. **ArgoCD ApplicationSet** — registers the application in ArgoCD, pointing at the Helm chart in this repo
+Connects to EKS via OIDC (`aws-github-role`) and runs in order:
+
+1. **Install ESO** — `helm upgrade --install external-secrets` with the `EKS-ESO-IRSA` role ARN fetched from AWS IAM (`aws iam get-role`)
+2. **Wait for CRDs** — `kubectl wait --for=condition=established` on all ESO CRDs before proceeding
+3. **Apply ApplicationSet** — ArgoCD takes ownership of the Helm chart, which includes the app ingress, ArgoCD UI ingress, `ClusterSecretStore`, and `ExternalSecret`
+4. **Force sync** — annotates the application with `argocd.argoproj.io/refresh=hard` to trigger an immediate sync
+
+The `ClusterSecretStore`, `ExternalSecret`, and both ALB ingresses are all managed inside the Helm chart — no standalone kubectl-applied manifests.
 
 ---
 
@@ -217,9 +247,14 @@ Connects to EKS via OIDC (role: `aws-github-role`) and applies:
 
 **Trigger:** Manual dispatch only.
 
-Runs `terraform fmt` → `terraform validate` → `tfsec` (security scan, results uploaded to GitHub Security tab) → `terraform apply -auto-approve`.
+Runs `terraform fmt` → `terraform validate` → `tfsec` (results uploaded to GitHub Security tab) → `terraform apply -auto-approve`.
 
-After apply, installs the External Secrets Operator via Helm with the correct IRSA role ARN read from Terraform output (`external_secrets_role_arn`).
+Key resources provisioned:
+- VPC, EKS cluster, RDS, ElastiCache, ALB controller, ExternalDNS, ArgoCD, Argo Rollouts
+- IAM roles: `EKS-ESO-IRSA` (ESO → Secrets Manager), `EKS-ArgoRollouts-IRSA` (Argo Rollouts → CloudWatch)
+- Route53 health check on `prod.sajil.click` + CloudWatch alarm
+
+After apply, installs ESO via Helm with the correct IRSA annotation (role ARN from `terraform output -raw external_secrets_role_arn`).
 
 ---
 
@@ -236,4 +271,5 @@ Runs `terraform destroy -auto-approve`. Tears down all AWS resources managed by 
 | Environment | URL |
 |---|---|
 | Production app | `https://prod.sajil.click` |
+| ArgoCD UI | `https://argocd.sajil.click` |
 | Helm chart repo | `https://sajilpb.github.io/ibs-gitops-platform` |

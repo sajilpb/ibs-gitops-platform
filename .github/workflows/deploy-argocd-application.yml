@@ -62,23 +62,9 @@ jobs:
             --set-string serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ROLE_ARN" \
             --wait --timeout 120s
 
-      - name: Wait for ESO CRDs to be established
-        run: |
-          kubectl wait --for=condition=established --timeout=60s \
-            crd/externalsecrets.external-secrets.io \
-            crd/clustersecretstores.external-secrets.io \
-            crd/secretstores.external-secrets.io
-
       - name: Deploy ArgoCD ApplicationSet
         run: |
           kubectl apply -f gitops/argocd-applications/applicationset.yaml
-
-      - name: Force ArgoCD sync
-        run: |
-          echo "Waiting for ArgoCD to process the ApplicationSet..."
-          sleep 20
-          kubectl -n argocd annotate application nodeapp-production \
-            argocd.argoproj.io/refresh=hard --overwrite 2>/dev/null || true
 
       - name: Verify ArgoCD resources
         run: |
