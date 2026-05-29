@@ -73,19 +73,11 @@ module "elastic-cache" {
 }
 
 #########################################
-# Redis DB
+# RDS
 #########################################
 module "db" {
   source                = "./modules/rds"
   vpc_id                = module.vpc.vpc_id
   subnet_ids            = module.vpc.private_subnets
   eks_security_group_id = module.eks.node_security_group_id
-}
-
-#########################################
-# Promethius and Grafana stack
-#########################################
-module "monitoring" {
-  source     = "git::https://github.com/sajilpb/Promethius.Grafana.stack.git"
-  depends_on = [module.csiaddon, module.eks]
 }

@@ -1,0 +1,174 @@
+{
+  "roles": [
+    {
+      "name": "TerraformExecutionRole",
+      "description": "Role assumed by Terraform/GitHub Actions to provision all AWS resources in this repo.",
+      "permissions": {
+        "iam": [
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:GetRole",
+          "iam:PassRole",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:CreatePolicy",
+          "iam:DeletePolicy",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:ListRoles",
+          "iam:ListPolicies"
+        ],
+        "eks": [
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
+          "eks:DescribeCluster",
+          "eks:CreateNodegroup",
+          "eks:DeleteNodegroup",
+          "eks:DescribeNodegroup",
+          "eks:ListClusters",
+          "eks:ListNodegroups"
+        ],
+        "ec2": [
+          "ec2:CreateSubnet",
+          "ec2:CreateVpc",
+          "ec2:CreateSecurityGroup",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeRouteTables",
+          "ec2:CreateRoute",
+          "ec2:DeleteRoute"
+        ],
+        "elasticloadbalancing": [
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeTargetGroups"
+        ],
+        "rds": [
+          "rds:CreateDBInstance",
+          "rds:DeleteDBInstance",
+          "rds:DescribeDBInstances",
+          "rds:CreateDBSubnetGroup",
+          "rds:DescribeDBSubnetGroups"
+        ],
+        "secretsmanager": [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:DescribeSecret"
+        ],
+        "route53": [
+          "route53:ListHostedZones",
+          "route53:ListResourceRecordSets"
+        ],
+        "s3": [
+          "s3:CreateBucket",
+          "s3:PutBucketVersioning",
+          "s3:HeadBucket"
+        ],
+        "dynamodb": [
+          "dynamodb:CreateTable",
+          "dynamodb:DescribeTable",
+          "dynamodb:ListTables"
+        ]
+      },
+      "resourceScope": "*"
+    },
+    {
+      "name": "EKSNodeRole",
+      "description": "IAM role associated with EKS worker nodes for image pull and AWS resource access.",
+      "inline_policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ecr:GetAuthorizationToken",
+              "ecr:BatchCheckLayerAvailability",
+              "ecr:GetDownloadUrlForLayer",
+              "ecr:BatchGetImage",
+              "elasticloadbalancing:*",
+              "ec2:*"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ALBControllerRole",
+      "description": "IRSA role for AWS Load Balancer Controller service account.",
+      "managed_policies": [
+        "arn:aws:iam::aws:policy/AWSLoadBalancerControllerIAMPolicy"
+      ],
+      "inline_policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ec2:DescribeRouteTables",
+              "elasticloadbalancing:DescribeListenerAttributes",
+              "elasticloadbalancing:SetRulePriorities"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExternalDNSRole",
+      "description": "IRSA role for ExternalDNS to manage Route53 records.",
+      "inline_policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "route53:ChangeResourceRecordSets"
+            ],
+            "Resource": "arn:aws:route53:::hostedzone/*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "route53:ListHostedZones",
+              "route53:ListResourceRecordSets"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EBSCSIServiceRole",
+      "description": "IRSA role for the AWS EBS CSI driver.",
+      "managed_policies": [
+        "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      ]
+    },
+    {
+      "name": "ExternalSecretsOperatorRole",
+      "description": "IRSA role for External Secrets Operator to read AWS Secrets Manager secrets.",
+      "inline_policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "secretsmanager:GetSecretValue",
+              "secretsmanager:DescribeSecret",
+              "secretsmanager:ListSecretVersionIds"
+            ],
+            "Resource": "arn:aws:secretsmanager:*:*:secret:*"
+          }
+        ]
+      }
+    }
+  ]
+}

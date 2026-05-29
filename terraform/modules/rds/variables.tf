@@ -47,5 +47,5 @@ variable "db_password_length" {
 
 variable "secrets_manager_secret_name" {
   type    = string
-  default = "nodeapp-db-credentials"
+  default = "nodeapp-db-credentials-v2"
 }
