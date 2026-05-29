@@ -57,7 +57,7 @@ jobs:
 
       - name: Configure kubeconfig for EKS
         run: |
-          aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "${{ env.EKS_CLUSTER_NAME }}"
+          aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "Node-app"
 
       - name: Install Helm
         uses: azure/setup-helm@v4
