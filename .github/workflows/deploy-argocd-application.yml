@@ -43,11 +43,46 @@ jobs:
       - name: Update kubeconfig for EKS
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Install External Secrets Operator
+        run: |
+          ROLE_ARN=$(aws iam get-role --role-name EKS-ESO-IRSA --query Role.Arn --output text)
+          helm repo add external-secrets https://charts.external-secrets.io
+          helm repo update
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets \
+            --create-namespace \
+            --set installCRDs=true \
+            --set serviceAccount.create=true \
+            --set serviceAccount.name=external-secrets \
+            --set-string serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ROLE_ARN" \
+            --wait --timeout 120s
+
+      - name: Wait for ESO CRDs to be established
+        run: |
+          kubectl wait --for=condition=established --timeout=60s \
+            crd/externalsecrets.external-secrets.io \
+            crd/clustersecretstores.external-secrets.io \
+            crd/secretstores.external-secrets.io
+
       - name: Deploy ArgoCD ApplicationSet
         run: |
           kubectl apply -f gitops/argocd-applications/applicationset.yaml
+
+      - name: Force ArgoCD sync
+        run: |
+          echo "Waiting for ArgoCD to process the ApplicationSet..."
+          sleep 20
+          kubectl -n argocd annotate application nodeapp-production \
+            argocd.argoproj.io/refresh=hard --overwrite 2>/dev/null || true
 
       - name: Verify ArgoCD resources
         run: |
           kubectl get ingress -n argocd
           kubectl get applicationset -n argocd
+          kubectl get application -n argocd
+          kubectl get ns nodeapp-production 2>/dev/null || echo "Namespace not yet created (ArgoCD syncing)"

@@ -61,7 +61,7 @@ jobs:
           fi
           
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG
-          echo "✅ Pushed image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG"
+          echo "Pushed image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$RELEASE_TAG"
 
       - name: Update Helm values for production
         run: |
@@ -88,17 +88,17 @@ jobs:
           else
             git commit -m "chore: promote image to production - $RELEASE_TAG"
             git push origin ${{ github.ref }}
-            echo "✅ Pushed Helm values update for $RELEASE_TAG"
+            echo "Pushed Helm values update for $RELEASE_TAG"
           fi
 
       - name: Create release summary
         run: |
           cat > /tmp/release-summary.txt <<EOF
-          🚀 Release Promotion Complete
+          Release Promotion Complete
           
           Release Version: ${{ steps.version.outputs.version }}
           Docker Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
           Production Helm Values: Updated
-          Status: ✅ Ready for deployment via ArgoCD
+          Status: Ready for deployment via ArgoCD
           EOF
           cat /tmp/release-summary.txt

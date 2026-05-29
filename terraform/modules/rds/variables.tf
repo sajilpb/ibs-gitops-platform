@@ -47,7 +47,7 @@ variable "db_password_length" {
 
 variable "secrets_manager_secret_name" {
   type    = string
-  default = "nodeapp-db-credentials-v3"
+  default = "nodeapp-db-credentials-v4"
 }
 
 variable "oidc_provider_arn" {
