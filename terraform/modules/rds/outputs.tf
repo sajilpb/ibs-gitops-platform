@@ -21,3 +21,8 @@ output "sm_secret_name" {
 output "sm_secret_arn" {
   value = aws_secretsmanager_secret.db_credentials.arn
 }
+
+output "eso_irsa_role_arn" {
+  description = "IAM Role ARN for External Secrets Operator IRSA"
+  value       = aws_iam_role.eso_irsa.arn
+}

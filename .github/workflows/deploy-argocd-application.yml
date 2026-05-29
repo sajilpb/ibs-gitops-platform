@@ -1,0 +1,63 @@
+name: Deploy ArgoCD Application
+
+on:
+  push:
+    paths:
+      - 'gitops/argocd-applications/**'
+  workflow_dispatch:
+    inputs:
+      cluster_name:
+        description: 'EKS cluster name'
+        required: false
+        default: 'NodeApp'
+      region:
+        description: 'AWS region'
+        required: false
+        default: 'us-east-1'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      AWS_REGION: ${{ github.event.inputs.region || 'us-east-1' }}
+      EKS_CLUSTER_NAME: ${{ github.event.inputs.cluster_name || 'NodeApp' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::955967371588:role/aws-github-role
+          aws-region: us-east-1
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Update kubeconfig for EKS
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Deploy ArgoCD ingress
+        run: |
+          kubectl apply -f gitops/argocd-applications/argocd-ingress.yml
+      
+      - name: Deploy external secrets Operator
+        run: |
+          kubectl apply -f gitops/argocd-applications/external-secrets/cluster-secret-store.yaml
+          kubectl apply -f gitops/argocd-applications/external-secrets/nodeapp-production-external-secret.yaml
+
+
+      - name: Deploy ArgoCD ApplicationSet
+        run: |
+          kubectl apply -f gitops/argocd-applications/applicationset.yaml
+
+      - name: Verify ArgoCD resources
+        run: |
+          kubectl get ingress -n argocd
+          kubectl get applicationset -n argocd
