@@ -50,6 +50,17 @@ db:
   sslKey: ssl
   ssl: true
 
+externalSecrets:
+  enabled: true
+  awsSecretName: "nodeapp-db-credentials-v3"
+  refreshInterval: 1h
+  clusterSecretStore:
+    create: true
+    name: aws-secrets-manager
+    region: us-east-1
+    serviceAccountName: external-secrets
+    serviceAccountNamespace: external-secrets
+
 nginx:
   name: nginx
   image: nginx:latest
@@ -86,4 +97,30 @@ ingress:
   tls: []
 
 argocd:
-  enabled: false
+  enabled: true
+  name: argocd
+  namespace: argocd
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/group.name: shared-alb
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:955967371588:certificate/58f46507-48af-4497-a836-43fb56b6b351
+      external-dns.alpha.kubernetes.io/hostname: argocd.sajil.click
+      alb.ingress.kubernetes.io/group.order: "10"
+    hosts:
+      - host: argocd.sajil.click
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argo-cd-argocd-server
+                port:
+                  number: 80
+    tls: []

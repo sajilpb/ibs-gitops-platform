@@ -43,16 +43,6 @@ jobs:
       - name: Update kubeconfig for EKS
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
-      - name: Deploy ArgoCD ingress
-        run: |
-          kubectl apply -f gitops/argocd-applications/argocd-ingress.yml
-      
-      - name: Deploy external secrets Operator
-        run: |
-          kubectl apply -f gitops/argocd-applications/external-secrets/cluster-secret-store.yaml
-          kubectl apply -f gitops/argocd-applications/external-secrets/nodeapp-production-external-secret.yaml
-
-
       - name: Deploy ArgoCD ApplicationSet
         run: |
           kubectl apply -f gitops/argocd-applications/applicationset.yaml

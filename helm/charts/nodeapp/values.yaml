@@ -86,6 +86,17 @@ argocd:
     hosts: []
     tls: []
 
+externalSecrets:
+  enabled: false
+  awsSecretName: ""
+  refreshInterval: 1h
+  clusterSecretStore:
+    create: false
+    name: aws-secrets-manager
+    region: us-east-1
+    serviceAccountName: external-secrets
+    serviceAccountNamespace: external-secrets
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
