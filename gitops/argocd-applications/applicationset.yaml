@@ -1,15 +1,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: nodeapp
+  name: nodeapp-appset
   namespace: argocd
 spec:
   generators:
     - list:
         elements:
-          # - env: development
-          #   namespace: nodeapp-development
-          #   cluster: https://kubernetes.default.svc
+          - env: development
+            namespace: nodeapp-development
+            cluster: https://kubernetes.default.svc
           - env: production
             namespace: nodeapp-production
             cluster: https://kubernetes.default.svc

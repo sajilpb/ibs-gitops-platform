@@ -1,0 +1,58 @@
+name: Promote to Development
+
+on:
+  workflow_run:
+    workflows: ["Create and publish a Docker image"]
+    types: [completed]
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  promote-dev:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Get image SHA from triggering run
+        id: image
+        run: |
+          SHA=${{ github.event.workflow_run.head_sha }}
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHA}" >> $GITHUB_OUTPUT
+          echo "Promoting image SHA: ${SHA}"
+
+      - name: Update dev values with new image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.sha }}"
+          VALUES_FILE="gitops/argocd-applications/development/values.yaml"
+
+          sed -i "s|image: ghcr.io/.*|image: ${IMAGE}|g" "$VALUES_FILE"
+
+          echo "Updated ${VALUES_FILE} with image: ${IMAGE}"
+          grep "image:" "$VALUES_FILE" | head -3
+
+      - name: Commit and push dev values update
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add gitops/argocd-applications/development/values.yaml
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit — image already up to date"
+          else
+            git commit -m "chore: promote image to development - ${{ steps.image.outputs.sha }}"
+            git push origin main
+            echo "Pushed dev values update"
+          fi
